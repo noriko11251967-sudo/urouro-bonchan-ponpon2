@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>黒猫ポンポン（うろうろ版）</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #fde7ed;
+      color: #222;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    header {
+      text-align: center;
+      padding: 16px 12px 8px;
+    }
+    h1 { margin: 0 0 6px; font-size: 20px; }
+    #score, #timer { margin: 0; font-size: 16px; }
+    #score { margin-bottom: 4px; }
+
+    /* 猫が動くステージ */
+    #stage {
+      position: relative;
+      flex: 1;                 /* 余った高さを全部使う */
+      overflow: hidden;        /* はみ出し防止 */
+      touch-action: manipulation;
+    }
+    /* 猫画像（絶対配置して動かす） */
+    #cat {
+      position: absolute;
+      left: 0; top: 0;
+      width: min(80vw, 420px);   /* 画面に合わせて大きく表示 */
+      max-width: 90%;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-drag: none;
+      transform: translate(0,0);
+      will-change: transform;
+    }
+
+    /* ゲーム終了オーバーレイ */
+    #over {
+      position: absolute; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      background: rgba(255,255,255,.5);
+      font-weight: 700;
+    }
+    #over.show { display: flex; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>黒猫のお尻ポンポン🐈‍⬛（うろうろ）</h1>
+    <p id="score">スコア: 0</p>
+    <p id="timer">残り時間: 15秒</p>
+  </header>
+
+  <div id="stage">
+    <img id="cat" src="blackcat.png" alt="黒猫">
+    <div id="over">ゲーム終了！</div>
+  </div>
+
+  <script>
+    // --- ゲーム基本 ---
+    let score = 0;
+    let time = 15;  // お好みで変更
+    const scoreEl = document.getElementById("score");
+    const timerEl = document.getElementById("timer");
+    const stage = document.getElementById("stage");
+    const cat = document.getElementById("cat");
+    const over = document.getElementById("over");
+
+    // クリックでスコア
+    cat.addEventListener("click", () => {
+      if (time <= 0) return;
+      score++;
+      scoreEl.textContent = "スコア: " + score + " にゃ〜🐾";
+      // クリックしたら少しスピードアップ（軽く）
+      moveDuration = Math.max(400, moveDuration - 50);
+      jumpToNextTarget(true);
+    }, { passive: true });
+
+    // --- うろうろ移動ロジック ---
+    let targetX = 0, targetY = 0;
+    let startX = 0, startY = 0;
+    let startT = 0, moveDuration = 900; // ms
+    let animId = 0;
+
+    function bounds() {
+      const st = stage.getBoundingClientRect();
+      const w = cat.offsetWidth;
+      const h = cat.offsetHeight;
+      // ステージからはみ出さない範囲で目標を決める
+      const maxX = Math.max(0, st.width - w);
+      const maxY = Math.max(0, st.height - h);
+      return { maxX, maxY };
+    }
+
+    function randBetween(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function easeOutQuad(t) { return 1 - (1 - t) * (1 - t); }
+
+    function setCatPosition(x, y) {
+      cat.style.transform = `translate(${x}px, ${y}px)`;
+    }
+
+    function jumpToNextTarget(fromClick=false) {
+      const { maxX, maxY } = bounds();
+      startX = targetX;
+      startY = targetY;
+      targetX = randBetween(0, maxX);
+      targetY = randBetween(0, maxY);
+      startT = performance.now();
+      if (!fromClick) moveDuration = 500;
+      if (!animId) animate();
+    }
+
+    function animate(now = performance.now()) {
+      const t = Math.min(1, (now - startT) / moveDuration);
+      const k = easeOutQuad(t);
+      const x = startX + (targetX - startX) * k;
+      const y = startY + (targetY - startY) * k;
+      setCatPosition(x, y);
+
+      if (t < 1) {
+        animId = requestAnimationFrame(animate);
+      } else {
+        animId = 0;
+        // 少し待ってから次の目的地へ
+        if (time > 0) {
+          setTimeout(() => jumpToNextTarget(), 150);
+        }
+      }
+    }
+
+    // 画面サイズが変わってもはみ出さないよう再ターゲット
+    window.addEventListener("resize", () => {
+      const { maxX, maxY } = bounds();
+      targetX = Math.min(targetX, maxX);
+      targetY = Math.min(targetY, maxY);
+    });
+
+    // 初期配置は中央付近
+    window.addEventListener("load", () => {
+      const { maxX, maxY } = bounds();
+      startX = targetX = maxX / 2;
+      startY = targetY = maxY / 2;
+      setCatPosition(targetX, targetY);
+      setTimeout(() => jumpToNextTarget(), 400);
+    });
+
+    // --- タイマー ---
+    const timer = setInterval(() => {
+      time--;
+      timerEl.textContent = "残り時間: " + Math.max(0, time) + "秒";
+      if (time <= 0) {
+        clearInterval(timer);
+        over.classList.add("show");
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
